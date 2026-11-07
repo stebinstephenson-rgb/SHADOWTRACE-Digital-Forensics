@@ -14,25 +14,130 @@ from modules.network_forensics.network_analyzer import analyze_pcap
 from modules.windows_forensics.windows_analyzer import analyze_evtx
 
 # 1. Page Configuration
-st.set_page_config(page_title="SHADOWTRACE", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="SHADOWTRACE", page_icon="🕷️", layout="wide")
 
-# 2. Custom CSS
+# 2. Custom CSS for Spider-Man / Symbiote Theme
 st.markdown("""
 <style>
-    .stApp { background-color: #030712; color: #e5e7eb; }
-    header {visibility: hidden;} footer {visibility: hidden;}
-    .glass-card {
-        background: rgba(255, 255, 255, 0.03);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(0, 229, 255, 0.2);
-        border-radius: 12px; padding: 20px; text-align: center;
-        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); margin-bottom: 20px;
+    /* Import Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Orbitron:wght@400;700;900&display=swap');
+
+    /* Theme Variables */
+    :root {
+        --bg-color: #05060a;
+        --panel-bg: #0d0f14;
+        --panel-border: #1a1c23;
+        --accent-red: #e10600;
+        --accent-red-glow: rgba(225, 6, 0, 0.6);
+        --accent-cyan: #00e5ff;
+        --accent-cyan-glow: rgba(0, 229, 255, 0.4);
+        --text-main: #ffffff;
+        --text-muted: #c9ced6;
     }
+
+    /* Base Styles */
+    .stApp { 
+        background-color: var(--bg-color); 
+        color: var(--text-main); 
+        font-family: 'Inter', sans-serif;
+    }
+    header {visibility: hidden;} 
+    footer {visibility: hidden;}
+    
+    /* Headings */
+    h1, h2, h3 { 
+        font-family: 'Orbitron', sans-serif !important; 
+        color: var(--text-main) !important;
+        text-transform: uppercase;
+    }
+    
+    /* Glitch / Glow Text */
     .neon-text {
-        color: #00e5ff; text-shadow: 0 0 10px rgba(0, 229, 255, 0.5); font-weight: bold;
+        color: var(--accent-red) !important; 
+        text-shadow: 0 0 15px var(--accent-red-glow); 
+        font-weight: 900;
+        letter-spacing: 2px;
     }
-    [data-testid="stMetricValue"] { color: #00e5ff !important; text-shadow: 0 0 10px rgba(0, 229, 255, 0.5); }
-    [data-testid="stSidebar"] { background-color: #0b1220 !important; border-right: 1px solid rgba(0, 229, 255, 0.1); }
+    .cyan-text {
+        color: var(--accent-cyan) !important;
+        text-shadow: 0 0 10px var(--accent-cyan-glow);
+    }
+
+    /* Glassmorphism Cards */
+    .glass-card {
+        background-color: var(--panel-bg);
+        border: 1px solid var(--panel-border);
+        border-top: 3px solid var(--accent-red);
+        border-radius: 12px; padding: 25px; text-align: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        transition: transform 0.2s, box-shadow 0.2s;
+        margin-bottom: 20px;
+    }
+    .glass-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 35px var(--accent-red-glow);
+        border-color: var(--accent-red);
+    }
+    
+    /* Metrics */
+    [data-testid="stMetricValue"] { 
+        color: var(--accent-cyan) !important; 
+        text-shadow: 0 0 10px var(--accent-cyan-glow);
+        font-family: 'Orbitron', sans-serif;
+    }
+    [data-testid="stMetricLabel"] {
+        color: var(--text-muted) !important;
+    }
+
+    /* Sidebar */
+    [data-testid="stSidebar"] { 
+        background-color: var(--panel-bg) !important; 
+        border-right: 2px solid var(--accent-red);
+    }
+    [data-testid="stSidebar"] .stRadio label {
+        color: var(--text-main) !important;
+        font-family: 'Inter', sans-serif;
+        transition: color 0.2s;
+    }
+    [data-testid="stSidebar"] .stRadio label:hover {
+        color: var(--accent-red) !important;
+    }
+    
+    /* Inputs & File Uploaders */
+    .stTextInput input, .stFileUploader {
+        background-color: rgba(255,255,255,0.05) !important;
+        border: 1px solid var(--panel-border) !important;
+        color: var(--text-main) !important;
+        border-radius: 8px;
+    }
+    .stTextInput input:focus {
+        border-color: var(--accent-red) !important;
+        box-shadow: 0 0 10px var(--accent-red-glow) !important;
+    }
+
+    /* Buttons */
+    .stButton > button {
+        background: linear-gradient(135deg, #b30500, var(--accent-red)) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 700 !important;
+        letter-spacing: 1px !important;
+        padding: 10px 24px !important;
+        transition: all 0.3s !important;
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 5px 15px var(--accent-red-glow) !important;
+        color: white !important;
+    }
+
+    /* Dataframes / Tables */
+    .stDataFrame { color: var(--text-main) !important; }
+    
+    /* Info/Warning Alerts */
+    .stAlert { background-color: var(--panel-bg) !important; border: 1px solid var(--accent-cyan) !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -61,7 +166,7 @@ def log_evidence_to_db(filename, file_bytes):
 
 # 3. Sidebar Navigation
 with st.sidebar:
-    st.markdown("<h2 style='text-align: center;'>🛡️ <span class='neon-text'>MENU</span></h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🕷️ <span class='neon-text'>MENU</span></h2>", unsafe_allow_html=True)
     st.divider()
     page = st.radio(
         "Select Module:",
@@ -72,8 +177,8 @@ with st.sidebar:
 
 # 4. Page Routing
 if page == "Overview":
-    st.markdown("<h1 style='text-align: center;'>🛡️ <span class='neon-text'>SHADOWTRACE</span></h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #9ca3af;'>Offline Digital Forensics & Cyber Investigation Suite</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>🕷️ <span class='neon-text'>SHADOWTRACE</span></h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #c9ced6;'>Offline Digital Forensics & Cyber Investigation Suite. Weaving the threads of digital evidence.</p>", unsafe_allow_html=True)
     st.divider()
 
     conn = get_db_connection()
@@ -85,15 +190,19 @@ if page == "Overview":
     conn.close()
 
     col1, col2, col3, col4 = st.columns(4)
-    with col1: st.markdown(f"<div class='glass-card'><h3>Total Evidence</h3><h2 class='neon-text'>{total_evidence}</h2></div>", unsafe_allow_html=True)
-    with col2: st.markdown(f"<div class='glass-card'><h3>Open Cases</h3><h2 class='neon-text'>{total_cases}</h2></div>", unsafe_allow_html=True)
-    with col3: st.markdown("<div class='glass-card'><h3>Suspicious Findings</h3><h2 class='neon-text'>0</h2></div>", unsafe_allow_html=True)
-    with col4: st.markdown("<div class='glass-card'><h3>Reports Generated</h3><h2 class='neon-text'>0</h2></div>", unsafe_allow_html=True)
-    st.info("Welcome, Investigator. System is ready. Select a module from the sidebar to begin.")
+    with col1: st.markdown(f"<div class='glass-card'><h3>Total Evidence</h3><h2 class='cyan-text'>{total_evidence}</h2></div>", unsafe_allow_html=True)
+    with col2: st.markdown(f"<div class='glass-card'><h3>Open Cases</h3><h2 class='cyan-text'>{total_cases}</h2></div>", unsafe_allow_html=True)
+    with col3: st.markdown("<div class='glass-card'><h3>Suspicious Findings</h3><h2 class='cyan-text'>0</h2></div>", unsafe_allow_html=True)
+    with col4: st.markdown("<div class='glass-card'><h3>Reports Generated</h3><h2 class='cyan-text'>0</h2></div>", unsafe_allow_html=True)
+    
+    st.info("System ready. Select a forensic module from the sidebar to begin your investigation.")
 
 elif page == "Image Forensics":
     st.markdown("<h1>🖼️ <span class='neon-text'>Image Forensics</span></h1>", unsafe_allow_html=True)
+    st.write("Upload an image to extract EXIF metadata and verify its integrity.")
+    
     uploaded_image = st.file_uploader("Upload Evidence (JPG, PNG, JPEG)", type=["jpg", "jpeg", "png"])
+    
     if uploaded_image is not None:
         if st.button("Run Image Analysis", type="primary"):
             with st.spinner("Analyzing image metadata..."):
@@ -108,12 +217,17 @@ elif page == "Image Forensics":
                     st.code(db_hash, language="text")
                     st.markdown("### 📊 Extracted Metadata")
                     st.json(results["metadata"])
+                except Exception as e:
+                    st.error(f"An error occurred: {e}")
                 finally:
                     if os.path.exists(tmp_filepath): os.remove(tmp_filepath)
 
 elif page == "Network Forensics":
     st.markdown("<h1>🌐 <span class='neon-text'>Network Forensics</span></h1>", unsafe_allow_html=True)
+    st.write("Upload a PCAP/PCAPNG file to analyze network traffic and protocol distribution.")
+    
     uploaded_pcap = st.file_uploader("Upload Network Capture", type=["pcap", "pcapng", "cap"])
+    
     if uploaded_pcap is not None:
         if st.button("Run Network Analysis", type="primary"):
             with st.spinner("Analyzing network packets..."):
@@ -124,17 +238,24 @@ elif page == "Network Forensics":
                     results = analyze_pcap(tmp_filepath)
                     log_evidence_to_db(uploaded_pcap.name, uploaded_pcap.getvalue())
                     st.success("Analysis Complete and Saved to Vault!")
+                    
                     col1, col2 = st.columns(2)
                     with col1: st.metric("Total Packets", results["Total Packets"])
                     with col2: st.metric("Unique IP Addresses", results["Unique IP Addresses"])
+                    
                     st.markdown("### 📡 Protocol Breakdown")
                     st.json(results["Protocol Breakdown"])
+                except Exception as e:
+                    st.error(f"An error occurred: {e}")
                 finally:
                     if os.path.exists(tmp_filepath): os.remove(tmp_filepath)
 
 elif page == "Windows Forensics":
     st.markdown("<h1>🪟 <span class='neon-text'>Windows Forensics</span></h1>", unsafe_allow_html=True)
+    st.write("Upload a Windows Event Log (.evtx) file to analyze system activity.")
+    
     uploaded_evtx = st.file_uploader("Upload Windows Event Log", type=["evtx"])
+    
     if uploaded_evtx is not None:
         if st.button("Run Windows Analysis", type="primary"):
             with st.spinner("Parsing Windows event logs..."):
@@ -145,20 +266,26 @@ elif page == "Windows Forensics":
                     results = analyze_evtx(tmp_filepath)
                     log_evidence_to_db(uploaded_evtx.name, uploaded_evtx.getvalue())
                     st.success("Analysis Complete and Saved to Vault!")
+                    
                     st.metric("Total Events Found", results["Total Events Found"])
+                    
                     st.markdown("### 📋 Recent Events Preview")
                     st.json(results["Recent Events Preview"])
+                except Exception as e:
+                    st.error(f"An error occurred: {e}")
                 finally:
                     if os.path.exists(tmp_filepath): os.remove(tmp_filepath)
 
 elif page == "Evidence Vault":
     st.markdown("<h1>🗄️ <span class='neon-text'>Evidence Vault</span></h1>", unsafe_allow_html=True)
     st.write("All ingested evidence is cryptographically hashed and stored here.")
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM evidence ORDER BY ingested_at DESC")
     evidence_records = cursor.fetchall()
     conn.close()
+    
     if not evidence_records:
         st.warning("Vault is empty. Upload evidence in one of the modules first.")
     else:
@@ -171,6 +298,7 @@ elif page == "Evidence Vault":
 elif page == "Investigation Timeline":
     st.markdown("<h1>⏱️ <span class='neon-text'>Investigation Timeline</span></h1>", unsafe_allow_html=True)
     st.write("Visual chronological mapping of all ingested evidence.")
+    
     conn = get_db_connection()
     df = pd.read_sql_query("SELECT evidence_id, filename, ingested_at FROM evidence ORDER BY ingested_at", conn)
     conn.close()
@@ -179,32 +307,49 @@ elif page == "Investigation Timeline":
         st.info("No evidence logged yet. Upload files to generate a timeline.")
     else:
         df['ingested_at'] = pd.to_datetime(df['ingested_at'])
-        fig = px.scatter(df, x='ingested_at', y='filename', color='filename', hover_data=['evidence_id'], title="Evidence Ingestion Sequence")
-        fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#00e5ff"))
+        
+        # Custom red/cyan dark theme for the Plotly chart
+        fig = px.scatter(
+            df, x='ingested_at', y='filename', color='filename', 
+            hover_data=['evidence_id'], title="Evidence Ingestion Sequence"
+        )
+        fig.update_layout(
+            template="plotly_dark", 
+            paper_bgcolor="rgba(0,0,0,0)", 
+            plot_bgcolor="rgba(0,0,0,0)", 
+            font=dict(color="#e10600") # Red text
+        )
+        fig.update_traces(marker=dict(size=12, line=dict(width=2, color='#00e5ff'))) # Cyan borders
+        
         st.plotly_chart(fig, use_container_width=True)
         st.markdown("### 📋 Raw Timeline Data")
         st.dataframe(df, use_container_width=True)
 
 elif page == "Case Management":
     st.markdown("<h1>📁 <span class='neon-text'>Case Management</span></h1>", unsafe_allow_html=True)
+    
     col1, col2 = st.columns(2)
+    
     with col1:
         st.markdown("### Create New Case")
         with st.form("new_case_form"):
             new_case_id = st.text_input("Case ID (e.g., CASE-002)")
             investigator = st.text_input("Investigator Name")
             submit = st.form_submit_button("Create Case")
+            
             if submit and new_case_id and investigator:
                 now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 conn = get_db_connection()
                 try:
-                    conn.execute("INSERT INTO cases (case_id, investigator, created_at, status) VALUES (?, ?, ?, ?)", (new_case_id, investigator, now, "Open"))
+                    conn.execute("INSERT INTO cases (case_id, investigator, created_at, status) VALUES (?, ?, ?, ?)",
+                                 (new_case_id, investigator, now, "Open"))
                     conn.commit()
                     st.success(f"Case {new_case_id} created successfully!")
                 except Exception as e:
                     st.error(f"Error: {e}")
                 finally:
                     conn.close()
+                    
     with col2:
         st.markdown("### Active Cases")
         conn = get_db_connection()
@@ -212,6 +357,8 @@ elif page == "Case Management":
         conn.close()
         if not cases_df.empty:
             st.dataframe(cases_df, use_container_width=True)
+        else:
+            st.write("No active cases.")
 
 elif page == "Reports & Analytics":
     st.markdown("<h1>📄 <span class='neon-text'>Reports & Analytics</span></h1>", unsafe_allow_html=True)
@@ -231,7 +378,6 @@ elif page == "Reports & Analytics":
                 pdf_path = generate_pdf_report("CASE-001", evidence_data)
                 st.success("Report Generated Successfully!")
                 
-                # Provide a download button
                 with open(pdf_path, "rb") as f:
                     st.download_button(
                         label="Download PDF",

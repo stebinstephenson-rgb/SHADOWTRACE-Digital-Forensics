@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHADOWTRACE | Digital Forensics</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js for Analytics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
+    <style>
+        /* =========================================
+           CSS VARIABLES (Edit these to change theme)
+           ========================================= */
+        :root {
+            --bg-color: #05060a;
+            --panel-bg: #0d0f14;
+            --panel-border: #1a1c23;
+            --accent-red: #e10600;
+            --accent-red-glow: rgba(225, 6, 0, 0.6);
+            --accent-cyan: #00e5ff;
+            --accent-cyan-glow: rgba(0, 229, 255, 0.4);
+            --text-main: #ffffff;
+            --text-muted: #c9ced6;
+            
+            --font-heading: 'Orbitron', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            
+            --sidebar-width: 260px;
+            --sidebar-collapsed: 80px;
+            --transition-speed: 0.3s;
+        }
+
+        /* =========================================
+           RESET & BASE
+           ========================================= */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            overflow-x: hidden;
+            cursor: none; /* Custom cursor */
+        }
+
+        /* Accessibility: Disable animations if user prefers reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+
+        /* =========================================
+           CUSTOM CURSOR
+           ========================================= */
+        #cursor-dot, #cursor-ring {
+            position: fixed;
+            top: 0; left: 0;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+        }
+        #cursor-dot {
+            width: 8px; height: 8px;
+            background-color: var(--accent-red);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent-red);
+        }
+        #cursor-ring {
+            width: 40px; height: 40px;
+            border: 1px solid rgba(225, 6, 0, 0.5);
+            border-radius: 50%;
+            transition: width 0.2s, height 0.2s, background-color 0.2s;
+        }
+        body.hovering #cursor-ring {
+            width: 60px; height: 60px;
+            background-color: rgba(225, 6, 0, 0.1);
+            border-color: var(--accent-red);
+        }
+
+        /* =========================================
+           BACKGROUND CANVAS (Spider Web)
+           ========================================= */
+        #web-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: -1;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+        /* =========================================
+           INTRO OVERLAY
+           ========================================= */
+        #intro {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-color);
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 1s ease;
+        }
+        #intro.fade-out { opacity: 0; pointer-events: none; }
+        .intro-logo {
+            font-family: var(--font-heading);
+            font-size: 3rem;
+            color: var(--text-main);
+            text-shadow: 0 0 20px var(--accent-red);
+            animation: pulse 2s infinite;
+        }
+
+        /* =========================================
+           SIDEBAR
+           ========================================= */
+        #sidebar {
+            position: fixed;
+            top: 0; left: 0;
+            height: 100vh;
+            width: var(--sidebar-width);
+            background-color: var(--panel-bg);
+            border-right: 1px solid var(--panel-border);
+            transition: width var(--transition-speed);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+        }
+        #sidebar.collapsed { width: var(--sidebar-collapsed); }
+
+        .sidebar-header {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--panel-border);
+            height: 70px;
+        }
+        .logo-text {
+            font-family: var(--font-heading);
+            font-weight: 900;
+            color: var(--text-main);
+            letter-spacing: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        #sidebar.collapsed .logo-text { display: none; }
+        #toggle-btn {
+            background: none; border: none; color: var(--text-muted);
+            font-size: 1.5rem; cursor: none; transition: color 0.3s;
+        }
+        #toggle-btn:hover { color: var(--accent-red); }
+
+        .menu { list-style: none; padding: 20px 0; overflow-y: auto; flex-grow: 1; }
+        .menu-item {
+            display: flex; align-items: center;
+            padding: 15px 20px; margin: 4px 10px;
+            color: var(--text-muted); text-decoration: none;
+            border-radius: 8px; cursor: none;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        .menu-item:hover {
+            background-color: rgba(255,255,255,0.03);
+            color: var(--text-main);
+        }
+        .menu-item.active {
+            background-color: rgba(225, 6, 0, 0.1);
+            color: var(--text-main);
+            font-weight: 600;
+            border-left: 3px solid var(--accent-red);
+            box-shadow: inset 20px 0 20px -20px var(--accent-red);
+        }
+        .menu-icon { margin-right: 15px; font-size: 1.2rem; min-width: 25px; text-align: center;}
+        #sidebar.collapsed .menu-text { display: none; }
+
+        /* =========================================
+           MAIN LAYOUT & TOPBAR
+           ========================================= */
+        #main-content {
+            margin-left: var(--sidebar-width);
+            transition: margin-left var(--transition-speed);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #main-content.expanded { margin-left: var(--sidebar-collapsed); }
+
+        #topbar {
+            height: 70px;
+            background-color: rgba(13, 15, 20, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--panel-border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 30px;
+            position: sticky; top: 0; z-index: 90;
+        }
+        .topbar-info span { margin-right: 20px; color: var(--text-muted); font-size: 0.9rem; }
+        .topbar-info strong { color: var(--accent-cyan); }
+
+        /* =========================================
+           VIEWS & SECTIONS
+           ========================================= */
+        .view {
+            padding: 40px;
+            flex-grow: 1;
+            display: none;
+            animation: slideUpFade 0.5s ease forwards;
+        }
+        .view.active { display: block; }
+
+        h1, h2, h3 { font-family: var(--font-heading); }
+        
+        /* Glitch Effect on Headings */
+        .glitch-title {
+            font-size: 3rem; margin-bottom: 10px; position: relative;
+            color: var(--text-main); text-shadow: 0 0 10px rgba(255,255,255,0.2);
+        }
+        .glitch-title::before, .glitch-title::after {
+            content: attr(data-text); position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%; background: var(--bg-color);
+        }
+        .glitch-title::before {
+            left: 2px; text-shadow: -2px 0 var(--accent-red);
+            clip: rect(44px, 450px, 56px, 0); animation: glitch-anim 5s infinite linear alternate-reverse;
+        }
+        .glitch-title::after {
+            left: -2px; text-shadow: -2px 0 var(--accent-cyan);
+            clip: rect(44px, 450px, 56px, 0); animation: glitch-anim2 5s infinite linear alternate-reverse;
+        }
+
+        /* =========================================
+           FORMS & INPUTS
+           ========================================= */
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: var(--text-main); font-weight: 600; }
+        input[type="text"], select {
+            width: 100%; padding: 12px 15px;
+            background-color: rgba(255,255,255,0.05);
+            border: 1px solid var(--panel-border);
+            border-radius: 8px; color: var(--text-main); font-family: var(--font-body);
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        input[type="text"]::placeholder { color: #8b92a0; } /* Light enough for contrast */
+        input[type="text"]:focus, select:focus {
+            outline: none; border-color: var(--accent-red);
+            box-shadow: 0 0 10px var(--accent-red-glow);
+        }
+
+        /* Buttons */
+        .btn {
+            background: linear-gradient(135deg, #b30500, var(--accent-red));
+            color: white; border: none; padding: 12px 24px;
+            border-radius: 8px; font-family: var(--font-heading);
+            font-weight: 700; letter-spacing: 1px; cursor: none;
+            position: relative; overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px); box-shadow: 0 5px 15px var(--accent-red-glow);
+        }
+        .btn::after {
+            content: ''; position: absolute; top: -50%; left: -50%;
+            width: 200%; height: 200%; background: rgba(255,255,255,0.2);
+            transform: rotate(45deg) translateY(-100%); transition: transform 0.3s;
+        }
+        .btn:hover::after { transform: rotate(45deg) translateY(100%); }
+
+        /* =========================================
+           OVERVIEW CARDS
+           ========================================= */
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px; margin-top: 30px;
+        }
+        .stat-card {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-top: 3px solid var(--accent-red);
+            padding: 25px; border-radius: 12px; text-align: center;
+            position: relative; transform-style: preserve-3d;
+            transition: transform 0.1s, box-shadow 0.3s;
+        }
+        .stat-card:hover {
+            box-shadow: 0 10px 30px rgba(225, 6, 0, 0.15), inset 0 0 20px rgba(225, 6, 0, 0.1);
+            border-color: var(--accent-red);
+        }
+        .stat-value {
+            font-family: var(--font-heading); font-size: 2.5rem;
+            color: var(--text-main); font-weight: 900; margin-top: 10px;
+        }
+        .stat-label { color: var(--text-muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* =========================================
+           MODULES (Upload & Terminal)
+           ========================================= */
+        .module-panel { background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 12px; padding: 30px; }
+        
+        .upload-zone {
+            border: 2px dashed var(--panel-border); border-radius: 12px;
+            padding: 40px; text-align: center; cursor: none;
+            transition: all 0.3s; background: rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--accent-red); background: rgba(225, 6, 0, 0.05);
+            box-shadow: 0 0 20px var(--accent-red-glow);
+        }
+        .upload-icon { font-size: 3rem; color: var(--accent-red); margin-bottom: 15px; }
+        
+        .terminal-window {
+            background: #000; border: 1px solid #333; border-radius: 8px;
+            font-family: monospace; padding: 15px; height: 200px;
+            overflow-y: auto; display: none; margin-top: 20px;
+        }
+        .terminal-line { color: var(--accent-cyan); margin-bottom: 5px; font-size: 0.9rem; }
+        .terminal-line.error { color: var(--accent-red); }
+        .terminal-line.success { color: #00ff00; }
+
+        /* =========================================
+           TABLES
+           ========================================= */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid var(--panel-border); }
+        th { background-color: rgba(255,255,255,0.02); color: var(--text-muted); font-weight: 600; }
+        tbody tr { transition: background 0.2s; }
+        tbody tr:hover { background-color: rgba(255,255,255,0.05); }
+        
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+        .badge.open { background: rgba(0, 229, 255, 0.2); color: var(--accent-cyan); }
+        .badge.high { background: rgba(225, 6, 0, 0.2); color: var(--accent-red); }
+
+        /* =========================================
+           CHART CONTAINERS
+           ========================================= */
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px; }
+        .chart-box { background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 12px; padding: 20px; }
+        
+        /* =========================================
+           ANIMATIONS & UTILS
+           ========================================= */
+        @keyframes pulse { 0%, 100% { opacity: 0.8; } 50% { opacity: 1; transform: scale(1.05); } }
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes glitch-anim {
+            0% { clip: rect(10px, 9999px, 50px, 0); }
+            20% { clip: rect(80px, 9999px, 20px, 0); }
+            40% { clip: rect(30px, 9999px, 90px, 0); }
+            60% { clip: rect(70px, 9999px, 10px, 0); }
+            80% { clip: rect(20px, 9999px, 60px, 0); }
+            100% { clip: rect(50px, 9999px, 40px, 0); }
+        }
+        @keyframes glitch-anim2 {
+            0% { clip: rect(70px, 9999px, 20px, 0); }
+            20% { clip: rect(10px, 9999px, 80px, 0); }
+            40% { clip: rect(50px, 9999px, 10px, 0); }
+            60% { clip: rect(20px, 9999px, 90px, 0); }
+            80% { clip: rect(90px, 9999px, 30px, 0); }
+            100% { clip: rect(30px, 9999px, 70px, 0); }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            #sidebar { transform: translateX(-100%); width: var(--sidebar-width); }
+            #sidebar.mobile-open { transform: translateX(0); }
+            #main-content { margin-left: 0; }
+            .chart-grid { grid-template-columns: 1fr; }
+            .glitch-title { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Custom Cursor -->
+    <div id="cursor-dot"></div>
+    <div id="cursor-ring"></div>
+
+    <!-- Background Spider Web Canvas -->
+    <canvas id="web-canvas"></canvas>
+
+    <!-- Intro Overlay -->
+    <div id="intro">
+        <div class="intro-logo">SHADOWTRACE</div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <nav id="sidebar">
+        <div class="sidebar-header">
+            <span class="logo-text">🕷️ SHADOWTRACE</span>
+            <button id="toggle-btn">«</button>
+        </div>
+        <ul class="menu">
+            <li><a href="#overview" class="menu-item active"><span class="menu-icon">📊</span><span class="menu-text">Overview</span></a></li>
+            <li><a href="#android" class="menu-item"><span class="menu-icon">🤖</span><span class="menu-text">Android Forensics</span></a></li>
+            <li><a href="#memory" class="menu-item"><span class="menu-icon">🧠</span><span class="menu-text">Memory Forensics</span></a></li>
+            <li><a href="#image" class="menu-item"><span class="menu-icon">🖼️</span><span class="menu-text">Image Forensics</span></a></li>
+            <li><a href="#windows" class="menu-item"><span class="menu-icon">🪟</span><span class="menu-text">Windows Forensics</span></a></li>
+            <li><a href="#network" class="menu-item"><span class="menu-icon">🌐</span><span class="menu-text">Network Forensics</span></a></li>
+            <li><a href="#vault" class="menu-item"><span class="menu-icon">🗄️</span><span class="menu-text">Evidence Vault</span></a></li>
+            <li><a href="#timeline" class="menu-item"><span class="menu-icon">⏱️</span><span class="menu-text">Timeline</span></a></li>
+            <li><a href="#cases" class="menu-item"><span class="menu-icon">📁</span><span class="menu-text">Case Management</span></a></li>
+            <li><a href="#reports" class="menu-item"><span class="menu-icon">📄</span><span class="menu-text">Reports & Analytics</span></a></li>
+        </ul>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main id="main-content">
+        <!-- Topbar -->
+        <header id="topbar">
+            <div class="topbar-info">
+                <button id="mobile-menu-btn" class="btn" style="padding: 5px 10px; font-size: 0.8rem; display:none; margin-right: 15px;">☰</button>
+                <span>Case ID: <strong>CASE-001</strong></span>
+                <span>Investigator: <strong>Lead Investigator</strong></span>
+            </div>
+            <div class="topbar-info">
+                <span id="live-clock">00:00:00</span>
+            </div>
+        </header>
+
+        <!-- ================= VIEW: OVERVIEW ================= -->
+        <section id="overview" class="view active">
+            <div class="hero" style="margin-top: 50px; text-align: center;">
+                <h1 class="glitch-title" data-text="SHADOWTRACE">SHADOWTRACE</h1>
+                <p style="color: var(--text-muted); font-size: 1.2rem; max-width: 600px; margin: 0 auto;">
+                    Offline Digital Forensics & Cyber Investigation Suite. Weaving the threads of digital evidence.
+                </p>
+                <div style="margin-top: 40px;">
+                    <button class="btn" onclick="location.hash='#image'">Start Investigation</button>
+                </div>
+            </div>
+
+            <div class="stats-grid" style="margin-top: 80px;">
+                <div class="stat-card tilt">
+                    <div class="stat-label">Total Evidence</div>
+                    <div class="stat-value count-up" data-target="1">0</div>
+                </div>
+                <div class="stat-card tilt">
+                    <div class="stat-label">Open Cases</div>
+                    <div class="stat-value count-up" data-target="2">0</div>
+                </div>
+                <div class="stat-card tilt">
+                    <div class="stat-label">Suspicious Findings</div>
+                    <div class="stat-value count-up" data-target="0">0</div>
+                </div>
+                <div class="stat-card tilt">
+                    <div class="stat-label">Reports Generated</div>
+                    <div class="stat-value count-up" data-target="0">0</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= VIEW: FORENSICS MODULES ================= -->
+        <!-- Reusable structure for Android, Memory, Image, Windows, Network -->
+        <section id="image" class="view">
+            <h1 class="glitch-title" data-text="Image Forensics">Image Forensics</h1>
+            <p style="color: var(--text-muted); margin-bottom: 30px;">Extract EXIF metadata and verify file integrity.</p>
+            
+            <div class="module-panel">
+                <div class="upload-zone" id="drop-zone-image">
+                    <div class="upload-icon">🕸️</div>
+                    <h3>Drag & Drop Evidence Here</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">or click to browse (JPG, PNG)</p>
+                    <input type="file" id="file-input-image" style="display: none;">
+                </div>
+                
+                <button class="btn" id="analyze-btn-image" style="display: none;">Run Analysis</button>
+                
+                <div class="terminal-window" id="terminal-image">
+                    <div class="terminal-line">> Initializing forensic environment...</div>
+                </div>
+                
+                <table id="results-image" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Results injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Placeholders for other modules -->
+        <section id="android" class="view">
+            <h1 class="glitch-title" data-text="Android Forensics">Android Forensics</h1>
+            <p style="color: var(--text-muted); margin-bottom: 30px;">Analyze authorized Android backup files.</p>
+            <div class="module-panel" style="text-align: center; padding: 60px;">
+                <div class="upload-icon" style="font-size: 4rem; opacity: 0.5;">🤖</div>
+                <h2>Module Under Construction</h2>
+                <p style="color: var(--text-muted);">Backend integration for `.ab` parsing is pending.</p>
+            </div>
+        </section>
+        
+        <section id="memory" class="view">
+            <h1 class="glitch-title" data-text="Memory Forensics">Memory Forensics</h1>
+            <p style="color: var(--text-muted); margin-bottom: 30px;">Analyze authorized RAM memory dumps.</p>
+            <div class="module-panel" style="text-align: center; padding: 60px;">
+                <div class="upload-icon" style="font-size: 4rem; opacity: 0.5;">🧠</div>
+                <h2>Module Under Construction</h2>
+                <p style="color: var(--text-muted);">Volatility 3 integration pending.</p>
+            </div>
+        </section>
+
+        <section id="windows" class="view">
+            <h1 class="glitch-title" data-text="Windows Forensics">Windows Forensics</h1>
+            <p style="color: var(--text-muted); margin-bottom: 30px;">Examine Windows event logs and registry exports.</p>
+            <div class="module-panel" style="text-align: center; padding: 60px;">
+                <div class="upload-icon" style="font-size: 4rem; opacity: 0.5;">🪟</div>
+                <h2>Module Under Construction</h2>
+                <p style="color: var(--text-muted);">`.evtx` parsing integration pending.</p>
+            </div>
+        </section>
+
+        <section id="network" class="view">
+            <h1 class="glitch-title" data-text="Network Forensics">Network Forensics</h1>
+            <p style="color: var(--text-muted); margin-bottom: 30px;">Analyze previously captured PCAP files.</p>
+            <div class="module-panel" style="text-align: center; padding: 60px;">
+                <div class="upload-icon" style="font-size: 4rem; opacity: 0.5;">🌐</div>
+                <h2>Module Under Construction</h2>
+                <p style="color: var(--text-muted);">Scapy/TShark integration pending.</p>
+            </div>
+        </section>
+
+        <!-- ================= VIEW: EVIDENCE VAULT ================= -->
+        <section id="vault" class="view">
+            <h1 class="glitch-title" data-text="Evidence Vault">Evidence Vault</h1>
+            <p style="color: var(--text-muted); margin-bottom: 30px;">Cryptographically hashed evidence storage.</p>
+            
+            <input type="text" placeholder="Search evidence by filename or hash..." style="margin-bottom: 20px; max-width: 400px;">
+            
+            <div class="module-panel" style="background: transparent; border: none; padding: 0;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Filename</th>
+                            <th>Type</th>
+                            <th>SHA-256 Hash</th>
+                            <th>Timestamp</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>suspect_photo.jpg</strong></td>
+                            <td>Image</td>
+                            <td style="font-family: monospace; color: var(--text-muted);">e3b0c44298fc1c149afbf4c8996fb924...</td>
+                            <td>2026-11-07 11:19:28</td>
+                            <td><span class="badge open">VERIFIED</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ================= VIEW: TIMELINE ================= -->
+        <section id="timeline" class="view">
+            <h1 class="glitch-title" data-text="Investigation Timeline">Investigation Timeline</h1>
+            <p style="color: var(--text-muted); margin-bottom: 30px;">Chronological mapping of all ingested evidence.</p>
+            
+            <div style="border-left: 2px solid var(--accent-red); padding-left: 30px; margin-left: 20px; position: relative;">
+                <!-- Timeline Item -->
+                <div style="margin-bottom: 40px; position: relative;" class="reveal">
+                    <div style="position: absolute; left: -38px; top: 0; width: 16px; height: 16px; background: var(--accent-red); border-radius: 50%; box-shadow: 0 0 10px var(--accent-red);"></div>
+                    <h3 style="color: var(--text-main); margin-bottom: 5px;">Image Evidence Ingested</h3>
+                    <p style="color: var(--accent-cyan); font-size: 0.9rem; margin-bottom: 10px;">2026-11-07 11:19:28</p>
+                    <p style="color: var(--text-muted);">File: suspect_photo.jpg hashed and added to vault.</p>
+                </div>
+                <!-- Timeline Item -->
+                <div style="margin-bottom: 40px; position: relative;" class="reveal">
+                    <div style="position: absolute; left: -38px; top: 0; width: 16px; height: 16px; background: var(--accent-red); border-radius: 50%; box-shadow: 0 0 10px var(--accent-red);"></div>
+                    <h3 style="color: var(--text-main); margin-bottom: 5px;">New Case Created</h3>
+                    <p style="color: var(--accent-cyan); font-size: 0.9rem; margin-bottom: 10px;">2026-11-07 11:32:54</p>
+                    <p style="color: var(--text-muted);">Investigator 'james bond' opened CASE-002.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= VIEW: CASE MANAGEMENT ================= -->
+        <section id="cases" class="view">
+            <h1 class="glitch-title" data-text="Case Management">Case Management</h1>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 30px;">
+                <!-- Create Form -->
+                <div class="module-panel">
+                    <h3 style="margin-bottom: 20px;">Create New Case</h3>
+                    <form id="case-form">
+                        <div class="form-group">
+                            <label>Case ID</label>
+                            <input type="text" id="case-id-input" placeholder="e.g., CASE-003" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Investigator Name</label>
+                            <input type="text" id="case-inv-input" placeholder="Enter full name" required>
+                        </div>
+                        <button type="submit" class="btn">Create Case</button>
+                    </form>
+                </div>
+                
+                <!-- Table -->
+                <div class="module-panel">
+                    <h3 style="margin-bottom: 20px;">Active Cases</h3>
+                    <table id="cases-table">
+                        <thead>
+                            <tr>
+                                <th>Case ID</th>
+                                <th>Investigator</th>
+                                <th>Created At</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>CASE-001</td>
+                                <td>Lead Investigator</td>
+                                <td>2026-11-07 11:19:28</td>
+                                <td><span class="badge open">Open</span></td>
+                            </tr>
+                            <tr>
+                                <td>CASE-002</td>
+                                <td>james bond</td>
+                                <td>2026-11-07 11:32:54</td>
+                                <td><span class="badge open">Open</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= VIEW: REPORTS ================= -->
+        <section id="reports" class="view">
+            <h1 class="glitch-title" data-text="Reports & Analytics">Reports & Analytics</h1>
+            <p style="color: var(--text-muted); margin-bottom: 30px;">Generate professional PDF reports and view investigation metrics.</p>
+            
+            <button class="btn" id="gen-pdf-btn" style="margin-bottom: 40px;">Generate PDF Report</button>
+
+            <div class="chart-grid">
+                <div class="chart-box">
+                    <h3 style="margin-bottom: 20px; font-size: 1rem; color: var(--text-muted);">Evidence Types</h3>
+                    <canvas id="chart1"></canvas>
+                </div>
+                <div class="chart-box">
+                    <h3 style="margin-bottom: 20px; font-size: 1rem; color: var(--text-muted);">Timeline Activity</h3>
+                    <canvas id="chart2"></canvas>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" style="position: fixed; bottom: 30px; right: 30px; background: var(--panel-bg); border: 1px solid var(--accent-cyan); color: white; padding: 15px 25px; border-radius: 8px; transform: translateY(100px); opacity: 0; transition: all 0.3s; z-index: 1000;">
+        Report Generated Successfully!
+    </div>
+
+    <!-- =========================================
+         JAVASCRIPT
+         ========================================= -->
+    <script>
+        /* --- 1. Custom Cursor --- */
+        const cursorDot = document.getElementById('cursor-dot');
+        const cursorRing = document.getElementById('cursor-ring');
+        
+        window.addEventListener('mousemove', (e) => {
+            const posX = e.clientX;
+            const posY = e.clientY;
+            
+            // Fast dot
+            cursorDot.style.transform = `translate(${posX}px, ${posY}px)`;
+            
+            // Slow ring
+            cursorRing.animate({
+                transform: `translate(${posX}px, ${posY}px)`
+            }, { duration: 150, fill: "forwards" });
+        });
+
+        // Hover effect on interactive elements
+        const interactiveEls = document.querySelectorAll('a, button, input, .upload-zone, .stat-card');
+        interactiveEls.forEach(el => {
+            el.addEventListener('mouseenter', () => document.body.classList.add('hovering'));
+            el.addEventListener('mouseleave', () => document.body.classList.remove('hovering'));
+        });
+
+        /* --- 2. Routing & Navigation --- */
+        const menuItems = document.querySelectorAll('.menu-item');
+        const views = document.querySelectorAll('.view');
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('main-content');
+        const toggleBtn = document.getElementById('toggle-btn');
+        
+        // Hash Routing
+        function handleRouting() {
+            let hash = window.location.hash.substring(1) || 'overview';
+            let targetView = document.getElementById(hash);
+            
+            if (!targetView) return;
+
+            // Update Views
+            views.forEach(v => v.classList.remove('active'));
+            targetView.classList.add('active');
+
+            // Update Menu
+            menuItems.forEach(m => {
+                m.classList.remove('active');
+                if(m.getAttribute('href') === '#' + hash) m.classList.add('active');
+            });
+
+            // Re-trigger animations for stats if on overview
+            if (hash === 'overview') {
+                runCountUp();
+            }
+        }
+        
+        window.addEventListener('hashchange', handleRouting);
+
+        // Sidebar Toggle
+        toggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+        });
+
+        /* --- 3. Live Clock --- */
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('live-clock').textContent = now.toLocaleTimeString();
+        }, 1000);
+
+        /* --- 4. Intro Screen --- */
+        setTimeout(() => {
+            document.getElementById('intro').classList.add('fade-out');
+        }, 2000);
+
+        /* --- 5. Count Up Animation --- */
+        function runCountUp() {
+            const counters = document.querySelectorAll('.count-up');
+            counters.forEach(counter => {
+                const target = +counter.getAttribute('data-target');
+                let count = 0;
+                const speed = target / 50 || 50;
+                
+                const updateCount = () => {
+                    count += speed;
+                    if (count < target) {
+                        counter.innerText = Math.ceil(count);
+                        requestAnimationFrame(updateCount);
+                    } else {
+                        counter.innerText = target;
+                    }
+                };
+                updateCount();
+            });
+        }
+
+        /* --- 6. 3D Tilt Effect --- */
+        const cards = document.querySelectorAll('.tilt');
+        cards.forEach(card => {
+            card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                
+                const rotateX = ((y - centerY) / centerY) * -10;
+                const rotateY = ((x - centerX) / centerX) * 10;
+                
+                card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = `perspective(1000px) rotateX(0) rotateY(0) scale3d(1, 1, 1)`;
+            });
+        });
+
+        /* --- 7. Image Module Mock Logic --- */
+        const dropZone = document.getElementById('drop-zone-image');
+        const fileInput = document.getElementById('file-input-image');
+        const analyzeBtn = document.getElementById('analyze-btn-image');
+        const terminal = document.getElementById('terminal-image');
+        const resultsTable = document.getElementById('results-image');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => { 
+            e.preventDefault(); 
+            dropZone.classList.remove('dragover');
+            if(e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                showAnalyzeBtn();
+            }
+        });
+        fileInput.addEventListener('change', showAnalyzeBtn);
+
+        function showAnalyzeBtn() {
+            analyzeBtn.style.display = 'inline-block';
+            document.querySelector('#drop-zone-image h3').innerText = fileInput.files[0].name;
+        }
+
+        analyzeBtn.addEventListener('click', () => {
+            analyzeBtn.style.display = 'none';
+            terminal.style.display = 'block';
+            terminal.innerHTML = '';
+            
+            const logs = [
+                "> Initializing forensic environment...",
+                "> Computing SHA-256 hash...",
+                "> Reading magic bytes...",
+                "> Extracting EXIF metadata (ExifTool)...",
+                "> Analyzing timestamps...",
+                "> Analysis Complete."
+            ];
+
+            let i = 0;
+            const interval = setInterval(() => {
+                const div = document.createElement('div');
+                div.className = 'terminal-line';
+                div.innerText = logs[i];
+                terminal.appendChild(div);
+                terminal.scrollTop = terminal.scrollHeight;
+                i++;
+                
+                if (i === logs.length) {
+                    clearInterval(interval);
+                    div.classList.add('success');
+                    setTimeout(() => {
+                        resultsTable.style.display = 'table';
+                        document.querySelector('#results-image tbody').innerHTML = `
+                            <tr><td>SHA-256</td><td style="font-family: monospace; color: var(--accent-cyan);">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</td></tr>
+                            <tr><td>Camera Make</td><td>Apple</td></tr>
+                            <tr><td>Camera Model</td><td>iPhone 14 Pro</td></tr>
+                            <tr><td>Timestamp</td><td>2026:11:07 10:15:22</td></tr>
+                            <tr><td>GPS Latitude</td><td>37.7749° N</td></tr>
+                            <tr><td>GPS Longitude</td><td>122.4194° W</td></tr>
+                        `;
+                    }, 500);
+                }
+            }, 600);
+        });
+
+        /* --- 8. Case Management Form --- */
+        document.getElementById('case-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = document.getElementById('case-id-input').value;
+            const inv = document.getElementById('case-inv-input').value;
+            const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+            
+            const tbody = document.querySelector('#cases-table tbody');
+            const tr = document.createElement('tr');
+            tr.style.opacity = 0;
+            tr.style.transition = 'opacity 0.5s';
+            tr.innerHTML = `
+                <td>${id}</td>
+                <td>${inv}</td>
+                <td>${now}</td>
+                <td><span class="badge open">Open</span></td>
+            `;
+            tbody.prepend(tr);
+            
+            // Animate in
+            setTimeout(() => tr.style.opacity = 1, 10);
+            
+            // Reset form
+            e.target.reset();
+        });
+
+        /* --- 9. Reports & PDF Mock --- */
+        document.getElementById('gen-pdf-btn').addEventListener('click', function() {
+            const originalText = this.innerText;
+            this.innerText = 'Generating...';
+            this.style.opacity = 0.7;
+            
+            setTimeout(() => {
+                this.innerText = originalText;
+                this.style.opacity = 1;
+                
+                const toast = document.getElementById('toast');
+                toast.style.transform = 'translateY(0)';
+                toast.style.opacity = '1';
+                
+                setTimeout(() => {
+                    toast.style.transform = 'translateY(100px)';
+                    toast.style.opacity = '0';
+                }, 3000);
+            }, 2000);
+        });
+
+        /* --- 10. Chart.js Analytics --- */
+        // Chart 1: Doughnut
+        const ctx1 = document.getElementById('chart1').getContext('2d');
+        new Chart(ctx1, {
+            type: 'doughnut',
+            data: {
+                labels: ['Images', 'Network', 'Windows', 'Android'],
+                datasets: [{
+                    data: [12, 19, 3, 5],
+                    backgroundColor: ['#e10600', '#00e5ff', '#333', '#555'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { labels: { color: '#c9ced6' } } }
+            }
+        });
+
+        // Chart 2: Line
+        const ctx2 = document.getElementById('chart2').getContext('2d');
+        new Chart(ctx2, {
+            type: 'line',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [{
+                    label: 'Evidence Ingested',
+                    data: [2, 5, 3, 8, 12, 4, 1],
+                    borderColor: '#e10600',
+                    backgroundColor: 'rgba(225, 6, 0, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { ticks: { color: '#c9ced6' }, grid: { display: false } },
+                    y: { ticks: { color: '#c9ced6' }, grid: { color: '#1a1c23' } }
+                },
+                plugins: { legend: { labels: { color: '#c9ced6' } } }
+            }
+        });
+
+        /* --- 11. Background Canvas Web Animation --- */
+        const canvas = document.getElementById('web-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        const particleCount = 50;
+        let mouse = { x: null, y: null, radius: 150 };
+
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.size = Math.random() * 2 + 1;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+
+                // Mouse interaction
+                let dx = mouse.x - this.x;
+                let dy = mouse.y - this.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < mouse.radius) {
+                    const force = (mouse.radius - distance) / mouse.radius;
+                    this.x -= dx * force * 0.05;
+                    this.y -= dy * force * 0.05;
+                }
+            }
+            draw() {
+                ctx.fillStyle = '#e10600';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        for (let i = 0; i < particleCount; i++) {
+            particles.push(new Particle());
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            particles.forEach(p => { p.update(); p.draw(); });
+
+            // Draw lines
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < 150) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(225, 6, 0, ${1 - distance/150})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        // Initialize Routing
+        handleRouting();
+    </script>
+</body>
+</html>
