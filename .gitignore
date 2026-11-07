@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# Streamlit & Database
+.shadowtrace.db
+database/shadowtrace.db
+
+# Reports & Evidence
+reports/*.pdf
+evidence_vault/
+sample_data/private/
+*.pcap
+*.evtx
+*.raw
+
+# OS Files
+.DS_Store
+Thumbs.db
